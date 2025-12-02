@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+<title>MALING RUN — v0.3 — DEMO REALLY? (Clean rebuild + Magic & Gunners + Dukun + Achievements)</title>
+<style>
+:root{
+  --bg:#07121b; --panel:#0b2228; --accent:#ffd86b; --hud-font:700 13px/1 "Inter", monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:linear-gradient(#071827,#041223);font-family:Inter,system-ui,monospace;color:#fff;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.container{max-width:980px;margin:10px auto;padding:8px}
+.game-area{background:linear-gradient(#0b1f26,#04121a);border-radius:10px;padding:8px;position:relative;overflow:hidden;box-shadow:0 18px 70px rgba(0,0,0,0.7)}
+.canvas-wrap{position:relative;}
+canvas{width:100%;height:auto;display:block;border-radius:8px;background:linear-gradient(#07121b,#041018);image-rendering:pixelated;touch-action:none}
+
+/* Modal elements default hidden - avoids ghost-block */
+.menu, .shop-modal, .center-msg, .popup, .dukun-modal {
+  display:none; pointer-events:none;
+}
+.menu.active, .shop-modal.active, .center-msg.active, .popup.active, .dukun-modal.active {
+  display:block; pointer-events:auto;
+}
+
+/* styles */
+.menu{position:absolute;left:50%;top:12%;transform:translateX(-50%);width:86%;max-width:760px;background:linear-gradient(#0a2428,#04121a);border:3px solid #063034;padding:14px;border-radius:10px;z-index:900;text-align:center;}
+.menu h1{margin:6px 0;color:#fff;font-size:36px;letter-spacing:2px;text-transform:uppercase}
+.menu .row{display:flex;justify-content:center;gap:12px;margin-top:10px}
+.btn{background:#0d333b;padding:10px 14px;border-radius:8px;color:#ffd;cursor:pointer;border:2px solid #062022;font-weight:800;font-size:16px}
+
+.controls{display:flex;justify-content:center;gap:12px;margin-top:8px;z-index:850}
+.icon-btn{width:96px;height:68px;border-radius:10px;background:#071b22;border:2px solid #0a343a;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.icon-btn img{image-rendering:pixelated;max-width:100%;height:auto}
+.icon-fallback{font-size:26px;color:#dfe}
+
+.hud{display:flex;align-items:center;gap:10px;margin-top:10px;z-index:800}
+.hud .box{background:rgba(3,18,22,0.62);padding:8px 10px;border-radius:8px;border:1px solid #063335;font:var(--hud-font);color:#ffd}
+.hud-right{margin-left:auto;display:flex;gap:8px}
+
+.update-box{margin-top:8px;background:rgba(6,18,20,0.6);padding:8px;border-radius:8px;border:1px solid #062326;color:#cfe;font-size:13px;max-width:100%}
+
+.shop-modal, .dukun-modal{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:88%;max-width:760px;background:#051219;border:3px solid #06262b;padding:14px;border-radius:10px;z-index:920;max-height:78vh;overflow:hidden;box-shadow:0 36px 100px rgba(0,0,0,0.8);
+}
+.shop-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.shop-grid{display:flex;flex-wrap:wrap;gap:10px;overflow:auto;padding-right:6px;max-height:56vh;-webkit-overflow-scrolling:touch}
+.card{width:150px;background:#07151a;border:2px solid #033537;padding:10px;border-radius:8px;text-align:center;color:#ffd}
+
+.center-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:940;background:#071a1f;padding:12px;border-radius:8px;border:2px solid #032;max-width:86%;text-align:center;color:#ffd}
+.popup{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);z-index:950;background:#052a2f;padding:10px 14px;border-radius:8px;color:#fff;border:1px solid rgba(255,255,255,0.04);}
+
+.oyin{position:fixed;left:50%;bottom:6px;transform:translateX(-50%);background:rgba(2,18,22,0.6);padding:6px 10px;border-radius:6px;font-weight:900;z-index:960;color:#fff}
+
+/* ensure interactive elements accept pointer */
+canvas, .controls, .icon-btn { pointer-events:auto }
+@media(max-width:420px){ .icon-btn{width:44vw;height:64px} .card{width:46%} .menu h1{font-size:30px} .btn{font-size:14px} }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="game-area" id="gameArea">
+    <div class="canvas-wrap">
+      <canvas id="canvas" width="960" height="400"></canvas>
+
+      <!-- MENU -->
+      <div id="menu" class="menu" role="dialog" aria-modal="true" aria-hidden="false">
+        <h1>MALING RUN</h1>
+        <div class="row">
+          <div id="playBtn" class="btn">PLAY</div>
+          <div id="shopBtn" class="btn">SHOP</div>
+        </div>
+      </div>
+
+      <!-- center message -->
+      <div id="centerMsg" class="center-msg" style="display:none"></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls" id="controlsRow">
+      <div id="jumpBtn" class="icon-btn" aria-label="Lompat"></div>
+      <div id="crouchBtn" class="icon-btn" aria-label="Jongkok"></div>
+      <div id="shootBtn" class="icon-btn" aria-label="Shoot" style="display:none"><div class="icon-fallback">●</div></div>
+    </div>
+
+    <!-- HUD -->
+    <div class="hud" id="hudRow">
+      <div class="box" id="scoreBox">SCORE: 0</div>
+      <div class="box" id="coinBox">KOIN: 0</div>
+      <div class="box" id="lifeBox">NYAWA: 3</div>
+      <div class="hud-right">
+        <div id="pauseBtn" class="btn" style="padding:6px 10px">PAUSE</div>
+        <div id="muteBtn" class="btn" style="padding:6px 10px">MUTE</div>
+      </div>
+    </div>
+
+    <div id="updateBox" class="update-box">v0.3 —  Demo</div>
+  </div>
+</div>
+
+<!-- SHOP -->
+<div id="shopModal" class="shop-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="shop-head">
+    <div style="font-weight:900;color:#ffd">SHOP</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div id="shopClose" class="btn" style="background:#2b2b2b;padding:6px 8px;cursor:pointer">CLOSE</div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div style="color:#cff">Koin: <span id="shopCoins">0</span></div>
+    <div><div id="shopBack" class="btn" style="background:#0d333b;padding:6px 8px;cursor:pointer">BACK</div></div>
+  </div>
+  <div id="shopGrid" class="shop-grid" tabindex="0" aria-label="Daftar skin & powerup"></div>
+</div>
+
+<!-- DUKUN (power-up merchant) -->
+<div id="dukunBtn" class="btn" style="position:fixed;right:12px;bottom:120px;z-index:960;padding:8px 10px;display:flex;align-items:center;gap:8px">DUKUN</div>
+
+<div id="dukunModal" class="dukun-modal shop-modal" role="dialog" aria-modal="true" aria-hidden="true" style="max-width:540px">
+  <div class="shop-head">
+    <div style="font-weight:900;color:#ffd">DUKUN - POWER UPS</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div id="dukunClose" class="btn" style="background:#2b2b2b;padding:6px 8px;cursor:pointer">TUTUP</div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div style="color:#cff">Koin: <span id="dukunCoins">0</span></div>
+    <div><div id="dukunBack" class="btn" style="background:#0d333b;padding:6px 8px;cursor:pointer">BACK</div></div>
+  </div>
+  <div id="dukunGrid" class="shop-grid" tabindex="0" aria-label="Daftar powerup dukun"></div>
+</div>
+
+<div id="popup" class="popup" style="display:none"></div>
+<div class="oyin">OYIN</div>
+
+<script>
+/* =================== MALING RUN v0.3 + Magic/Gunners/Dukun/Achievements =================== */
+/* Safety: modal elements default hidden using display:none and pointer-events:none to avoid ghost blocking overlays. */
+
+/* ---------- Canvas & DPR ---------- */
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d',{alpha:false});
+const BASE_W = 960, BASE_H = 400;
+let DPR = Math.max(1, window.devicePixelRatio || 1);
+function resizeCanvas(){
+  const parent = canvas.parentElement;
+  const cssW = Math.min(parent.clientWidth - 2, 980);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = Math.round(BASE_H * (cssW / BASE_W)) + 'px';
+  canvas.width = Math.floor(BASE_W * DPR);
+  canvas.height = Math.floor(BASE_H * DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.imageSmoothingEnabled = false;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+/* ---------- Persistence ---------- */
+let coins = Number(localStorage.getItem('mr_coins') || 0);
+let best  = Number(localStorage.getItem('mr_best') || 0);
+let owned = JSON.parse(localStorage.getItem('mr_owned') || '["merah"]');
+let currentSkin = localStorage.getItem('mr_skin') || 'merah';
+
+/* Achievements persisted separately */
+const ACH_STORAGE_KEY = 'mr_ach';
+let ACH = { list: [], unlocked: [] }; // will init later
+
+function saveAchievements(){ try{ localStorage.setItem(ACH_STORAGE_KEY, JSON.stringify(ACH.unlocked)); }catch(e){} }
+function saveAll(){ localStorage.setItem('mr_coins', coins); localStorage.setItem('mr_best', best); localStorage.setItem('mr_owned', JSON.stringify(owned)); localStorage.setItem('mr_skin', currentSkin); saveAchievements(); }
+
+/* ---------- DOM refs ---------- */
+const menuEl    = document.getElementById('menu');
+const shopEl    = document.getElementById('shopModal');
+const centerEl  = document.getElementById('centerMsg');
+const popupEl   = document.getElementById('popup');
+const controlsRow = document.getElementById('controlsRow');
+const shootBtnEl = document.getElementById('shootBtn');
+
+/* ---------- Helper show/hide (safe) ---------- */
+function showElementSafe(el){ if(!el) return; el.classList.add('active'); el.style.display = 'block'; el.setAttribute('aria-hidden','false'); }
+function hideElementSafe(el){ if(!el) return; el.classList.remove('active'); el.style.display = 'none'; el.setAttribute('aria-hidden','true'); }
+function clearAllOverlays(){ [menuEl, shopEl, centerEl, popupEl, document.getElementById('dukunModal')].forEach(hideElementSafe); controlsRow.style.visibility = 'visible'; }
+window.__mrun = window.__mrun || {}; window.__mrun.clearOverlays = clearAllOverlays;
+
+/* ---------- Procedural sprites ---------- */
+function makeCanvas(w,h){ const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d'); g.imageSmoothingEnabled=false; return {canvas:c, ctx:g}; }
+function px(g,x,y,w,h,col){ g.fillStyle=col; g.fillRect(x,y,w,h); }
+
+const SPR = { thief:[], jump:null, crouch:null, car:null, police:null, heli:null, coin:null, sack:null, life:null };
+
+function tint(hex,p){ const v=hex.replace('#',''); let r=parseInt(v.substring(0,2),16), g=parseInt(v.substring(2,4),16), b=parseInt(v.substring(4,6),16); r=Math.round(Math.max(0,Math.min(255,r + r*p))); g=Math.round(Math.max(0,Math.min(255,g + g*p))); b=Math.round(Math.max(0,Math.min(255,b + b*p))); return '#'+r.toString(16).padStart(2,'0')+g.toString(16).padStart(2,'0')+b.toString(16).padStart(2,'0'); }
+
+function genThief(col){
+  SPR.thief=[]; const SCALE=2, BW=24, BH=28;
+  for(let f=0; f<6; f++){
+    const m=makeCanvas(BW*SCALE,BH*SCALE); const g=m.ctx; g.fillStyle='#07121a'; g.fillRect(0,0,m.canvas.width,m.canvas.height);
+    const body = col || '#d9523b';
+    px(g,8*SCALE,2*SCALE,8*SCALE,8*SCALE,tint(body,-0.06)); px(g,9*SCALE,4*SCALE,6*SCALE,4*SCALE,'#000'); px(g,6*SCALE,10*SCALE,12*SCALE,12*SCALE,body);
+    px(g,6*SCALE,10*SCALE,12*SCALE,4*SCALE,tint(body,0.12));
+    if(f%3===0){ px(g,6*SCALE,22*SCALE,4*SCALE,6*SCALE,'#111'); px(g,14*SCALE,22*SCALE,4*SCALE,6*SCALE,'#111'); }
+    else if(f%3===1){ px(g,6*SCALE,20*SCALE,4*SCALE,8*SCALE,'#111'); px(g,14*SCALE,22*SCALE,4*SCALE,6*SCALE,'#111'); }
+    else { px(g,6*SCALE,22*SCALE,4*SCALE,6*SCALE,'#111'); px(g,14*SCALE,20*SCALE,4*SCALE,8*SCALE,'#111'); }
+    SPR.thief.push(m.canvas);
+  }
+  const j = makeCanvas(BW*SCALE,BH*SCALE); j.ctx.fillStyle='#07121a'; j.ctx.fillRect(0,0,j.canvas.width,j.canvas.height);
+  px(j.ctx,8*SCALE,2*SCALE,8*SCALE,8*SCALE,tint(col,-0.06)); px(j.ctx,6*SCALE,10*SCALE,12*SCALE,12*SCALE,col); px(j.ctx,6*SCALE,22*SCALE,4*SCALE,6*SCALE,'#111'); px(j.ctx,14*SCALE,22*SCALE,4*SCALE,6*SCALE,'#111'); SPR.jump=j.canvas;
+  const c = makeCanvas(BW*SCALE,BH*SCALE); c.ctx.fillStyle='#07121a'; c.ctx.fillRect(0,0,c.canvas.width,c.canvas.height);
+  px(c.ctx,5*SCALE,14*SCALE,14*SCALE,8*SCALE,col); px(c.ctx,7*SCALE,4*SCALE,10*SCALE,6*SCALE,tint(col,-0.04)); px(c.ctx,9*SCALE,6*SCALE,6*SCALE,3*SCALE,'#000'); SPR.crouch=c.canvas;
+}
+
+function genCar(){ const s=makeCanvas(140,54); const g=s.ctx; g.fillStyle='#07121a'; g.fillRect(0,0,140,54); px(g,10,18,120,22,'#273949'); px(g,10,14,110,6,'#16313e'); px(g,24,18,40,12,'rgba(140,200,230,0.12)'); px(g,70,18,30,12,'rgba(140,200,230,0.12)'); px(g,24,36,16,10,'#0a0a0a'); px(g,100,36,16,10,'#0a0a0a'); SPR.car=s.canvas; }
+function genPolice(){ const s=makeCanvas(46,56); const g=s.ctx; g.fillStyle='#07121a'; g.fillRect(0,0,46,56); px(g,6,10,34,36,'#082e63'); px(g,11,2,24,8,'#f1c27d'); px(g,10,8,26,6,'#05283f'); px(g,20,18,6,4,'#ffd86b'); SPR.police=s.canvas; }
+function genHeli(){ const s=makeCanvas(140,40); const g=s.ctx; g.fillStyle='#07121a'; g.fillRect(0,0,140,40); px(g,12,12,110,18,'#2e3f4f'); px(g,90,6,48,12,'#89c7ff'); px(g,4,20,30,8,'#263842'); SPR.heli=s.canvas; }
+function genItems(){ const coin=makeCanvas(18,18); const gc=coin.ctx; gc.fillStyle='#d9b25a'; gc.fillRect(0,0,18,18); px(gc,4,4,10,10,'#ffd86b'); SPR.coin=coin.canvas;
+  const sack=makeCanvas(26,26); const gs=sack.ctx; gs.fillStyle='#94703d'; gs.fillRect(0,0,26,26); px(gs,8,8,10,12,'#caa86b'); px(gs,10,4,6,4,'#6a4b2a'); SPR.sack=sack.canvas;
+  const life=makeCanvas(16,16); const gl=life.ctx; gl.fillStyle='#8ef'; gl.fillRect(0,0,16,16); px(gl,5,4,6,6,'#024'); SPR.life=life.canvas;
+}
+
+/* init sprites */
+genThief('#d9523b'); genCar(); genPolice(); genHeli(); genItems();
+
+/* control icons */
+function setControlIcons(){
+  const makeData = (src,w,h)=>{ const tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h; const g=tmp.getContext('2d'); g.imageSmoothingEnabled=false; g.fillStyle='#07121a'; g.fillRect(0,0,w,h); g.drawImage(src,0,0,src.width,src.height,0,0,w,h); return tmp.toDataURL(); };
+  try{ document.getElementById('jumpBtn').innerHTML = '<img src="'+makeData(SPR.jump,84,64)+'" alt="jump">'; } catch(e){ document.getElementById('jumpBtn').innerHTML = '<div class="icon-fallback">▲</div>'; }
+  try{ document.getElementById('crouchBtn').innerHTML = '<img src="'+makeData(SPR.crouch,84,64)+'" alt="crouch">'; } catch(e){ document.getElementById('crouchBtn').innerHTML = '<div class="icon-fallback">▼</div>'; }
+  try{
+    const tmp=document.createElement('canvas'); tmp.width=64; tmp.height=48; const g=tmp.getContext('2d'); g.fillStyle='#07121a'; g.fillRect(0,0,64,48); g.fillStyle='#b22'; g.fillRect(8,16,48,16); g.fillStyle='#222'; g.fillRect(40,8,8,6);
+    document.getElementById('shootBtn').innerHTML = '<img src="'+tmp.toDataURL()+'" alt="shoot">';
+  } catch(e){ /*fallback*/ }
+}
+setControlIcons();
+
+/* ---------- World state ---------- */
+let gameState = 'menu';
+let score = 0, lives = 3;
+const player = { x:88, y:0, w:34, h:46, vy:0, onGround:true, sliding:false, slideT:0, frame:0, tick:0 };
+const groundY = BASE_H - 90;
+let buildings = [], obstacles = [], helis = [], items = [], particles = [];
+let spawnTimer = 1000, lifeTimer = rand(18000,30000), sackTimer = rand(22000,42000);
+const MAX_OBS = 2;
+let worldSpeedBase = 5, worldSpeed = worldSpeedBase;
+const PHASES=['night','morning','day','evening']; let phase=0, phaseElapsed=0, phaseDuration=30000;
+
+/* NEW: bullets & active powers */
+let bullets = []; // {x,y,vx,life}
+let activePowers = {}; // {ghost:true, magnet:true, x2:true}
+let powerTimers = {}; // ms timers
+
+/* ---------- Achievements init ---------- */
+ACH = {
+  list: [
+    { id:'runner1', title:'Runner I', desc:'Capai score 500', check: (s)=> s >= 500, reward: 150 },
+    { id:'runner2', title:'Runner II', desc:'Capai score 2000', check: (s)=> s >= 2000, reward: 500 },
+    { id:'rich', title:'Rich Boy', desc:'Kumpulkan 10000 koin', check: ()=> coins >= 10000, reward: 1200 },
+    { id:'gunmaster', title:'Gun Master', desc:'Hancurkan 30 polisi pakai Gunners', check: ()=> ACH.gunnersKills >= 30, reward: 800 },
+    { id:'ghosted', title:'Ghosted', desc:'Aktifkan Hantu 10x', check: ()=> ACH.ghostUses >= 10, reward: 600 }
+  ],
+  unlocked: JSON.parse(localStorage.getItem('mr_ach') || '[]'),
+  gunnersKills: 0,
+  ghostUses: 0
+};
+
+function saveAchievements(){ try{ localStorage.setItem('mr_ach', JSON.stringify(ACH.unlocked)); }catch(e){} }
+function unlockAchievement(id){
+  if(ACH.unlocked.includes(id)) return;
+  ACH.unlocked.push(id); saveAchievements();
+  const a = ACH.list.find(x=>x.id===id);
+  if(a){ popup('Achievement unlocked: ' + a.title + ' (+ ' + a.reward + ' koin)'); coins += a.reward; saveAll(); updateHUD(); }
+}
+function checkAchievements(){
+  for(const a of ACH.list){
+    if(!ACH.unlocked.includes(a.id)){
+      try{ if(a.check(score)) unlockAchievement(a.id); } catch(e){}
+    }
+  }
+}
+
+/* ---------- helpers ---------- */
+function rand(a,b){ return a + Math.random()*(b-a); }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+/* buildings */
+function createBuildings(){ buildings=[]; for(let i=0;i<14;i++){ const w = 110 + (i%4)*28; const h = 70 + (i%5)*22; const cols = Math.max(3, Math.floor(w/20)); const rows = Math.max(3, Math.floor(h/16)); const windows=[]; for(let r=0;r<rows;r++){ const row=[]; for(let c=0;c<cols;c++) row.push({ lit: Math.random() < 0.44 }); windows.push(row); } buildings.push({ x:i*240, w, h, speed:0.14 + (i%3)*0.06, windows }); } }
+createBuildings();
+
+/* spawn logic */
+function spawnObstacle(){
+  const sx = BASE_W + 60;
+  if(Math.random() < 0.12 && helis.length < 2){
+    helis.push({ x:sx, y:70 + Math.random()*80, w:SPR.heli.width*0.9, h:SPR.heli.height*0.9, vx:-(worldSpeed + 0.6 + Math.random()*1.2), bob: Math.random()*6 });
+  } else {
+    if(obstacles.length < MAX_OBS){
+      if(Math.random() < 0.44){
+        const tall = Math.random() < 0.28;
+        const w = tall ? 48 : 40;
+        const h = tall ? 48 : 36;
+        obstacles.push({ type:'police', x:sx, y:groundY - h, w:w, h:h, vx:-(worldSpeed + Math.random()*1.4) });
+      } else {
+        obstacles.push({ type:'car', x:sx, y:groundY - (SPR.car.height * 0.72), w:SPR.car.width*0.6, h:SPR.car.height*0.9, vx:-(worldSpeed + 1.0 + Math.random()*0.8) });
+      }
+    } else {
+      if(Math.random() < 0.55){
+        const cnt = 1 + Math.floor(Math.random()*2);
+        for(let i=0;i<cnt;i++) items.push({ type:'coin', x:BASE_W + 80 + i*26, y:groundY - 50 - Math.random()*90, vx:-worldSpeed, wob:Math.random()*6 });
+      }
+    }
+  }
+  if(Math.random() < 0.45){
+    const cnt = 1 + Math.floor(Math.random()*2);
+    for(let i=0;i<cnt;i++) items.push({ type:'coin', x:BASE_W + 60 + i*26, y:groundY - 50 - Math.random()*90, vx:-worldSpeed, wob:Math.random()*6 });
+  }
+}
+
+/* spawn items */
+function spawnLife(){ items.push({ type:'life', x:BASE_W+60, y:groundY-140-Math.random()*60, vx:-worldSpeed }); popup('Nyawa extra di jalur!'); }
+function spawnSack(){ items.push({ type:'sack', x:BASE_W+60, y:groundY-120-Math.random()*90, vx:-worldSpeed }); popup('Karung koin! +15'); }
+
+/* collisions & bullets */
+function handleCollisions(){
+  const pbox = { x:player.x, y:player.y + (player.sliding?18:0), w:player.w, h:player.h - (player.sliding?18:0) };
+  // obstacles collisions with player (consider ghost power)
+  for(let i=obstacles.length-1;i>=0;i--){
+    const o=obstacles[i];
+    if(!(pbox.x + pbox.w < o.x || pbox.x > o.x + o.w || pbox.y + pbox.h < o.y || pbox.y > o.y + o.h)){
+      if(o.type==='police' && activePowers.ghost){ obstacles.splice(i,1); spawnSparkles(o.x,o.y,10); continue; }
+      obstacles.splice(i,1); lives--; popup('Tertabrak! -1 nyawa'); if(lives <= 0){ endGame(); return; }
+    }
+  }
+  // helis
+  for(let i=helis.length-1;i>=0;i--){
+    const h=helis[i];
+    if(!(pbox.x + pbox.w < h.x || pbox.x > h.x + h.w || pbox.y + pbox.h < h.y || pbox.y > h.y + h.h)){
+      helis.splice(i,1); lives--; popup('Kena heli! -1 nyawa'); if(lives <= 0){ endGame(); return; }
+    }
+  }
+  // items & powers
+  for(let i=items.length-1;i>=0;i--){
+    const it = items[i];
+    const box = { x: it.x - (it.type==='coin'?10:14), y: it.y - (it.type==='coin'?10:14), w: (it.type==='coin'?20:28), h: (it.type==='coin'?20:28) };
+    // magnet extends pickup radius
+    let inflated = Object.assign({}, box);
+    if(activePowers.magnet && it.type==='coin'){ inflated.x -= 24; inflated.w += 48; inflated.y -= 24; inflated.h += 48; }
+    if(!(pbox.x + pbox.w < inflated.x || pbox.x > inflated.x + inflated.w || pbox.y + pbox.h < inflated.y || pbox.y > inflated.y + inflated.h)){
+      if(it.type==='coin'){ coins += (activePowers.x2?10:5); score += 12; spawnSparkles(it.x,it.y,10); items.splice(i,1); }
+      else if(it.type==='sack'){ coins += 15; score += 35; spawnSparkles(it.x,it.y,16); items.splice(i,1); popup('+15 Koin!'); }
+      else if(it.type==='life'){ lives = Math.min(6, lives + 1); items.splice(i,1); popup('+1 Nyawa!'); }
+      else if(it.type==='power'){
+        const k = it.kind;
+        if(k){ activePowers[k] = true; powerTimers[k] = 15000; popup('Power aktif: '+k); if(k==='ghost'){ ACH.ghostUses = (ACH.ghostUses||0) + 1; checkAchievements(); } }
+        items.splice(i,1);
+      }
+    }
+  }
+  updateHUD();
+
+  // bullets vs police
+  for(let bi=bullets.length-1; bi>=0; bi--){
+    const b = bullets[bi];
+    for(let oi=obstacles.length-1; oi>=0; oi--){
+      const o = obstacles[oi];
+      if(o.type==='police'){
+        if(!(b.x + 6 < o.x || b.x > o.x + o.w || b.y + 4 < o.y || b.y > o.y + o.h)){
+          obstacles.splice(oi,1);
+          bullets.splice(bi,1);
+          spawnSparkles(o.x,o.y,10);
+          score += 20;
+          ACH.gunnersKills = (ACH.gunnersKills||0) + 1;
+          checkAchievements();
+          break;
+        }
+      }
+    }
+  }
+}
+
+/* sparkles */
+function spawnSparkles(x,y,count){ for(let i=0;i<count;i++) particles.push({ x:x + Math.random()*12 -6, y:y + Math.random()*12 -6, vx:(Math.random()-0.5)*2.5, vy:(Math.random()-1.8)*2, life:300+Math.random()*400, col: Math.random()<0.7? '#ffd86b' : '#fff7cc' }); }
+
+/* controls */
+function doJump(){ if(gameState==='menu'){ startGame(); return; } if(player.onGround && !player.sliding){ player.vy = -16; player.onGround = false; sfx('jump'); } }
+function doCrouch(){ if(gameState!=='playing') return; if(player.onGround && !player.sliding){ player.sliding = true; player.slideT = 420; sfx('slide'); } }
+function doShoot(){ if(currentSkin !== 'gunners') return; bullets.push({ x: player.x + player.w + 4, y: player.y + player.h/2 - 4, vx: 14, life: 1000 }); sfx('shoot'); }
+
+/* HUD */
+function updateHUD(){ document.getElementById('scoreBox').textContent = 'SCORE: ' + Math.floor(score); document.getElementById('coinBox').textContent = 'KOIN: ' + coins; document.getElementById('lifeBox').textContent = 'NYAWA: ' + lives; document.getElementById('shopCoins') && (document.getElementById('shopCoins').textContent = coins); document.getElementById('dukunCoins') && (document.getElementById('dukunCoins').textContent = coins); }
+
+/* menu / shop / dukun functions */
+function showMenu(){ showElementSafe(menuEl); controlsRow.style.visibility = 'hidden'; }
+function hideMenu(){ hideElementSafe(menuEl); controlsRow.style.visibility = 'visible'; }
+function openShop(){ buildShop(); showElementSafe(shopEl); hideElementSafe(menuEl); controlsRow.style.visibility = 'hidden'; }
+function closeShop(back=true){ hideElementSafe(shopEl); if(back) showMenu(); }
+function openDukun(){ buildDukun(); showElementSafe(document.getElementById('dukunModal')); hideElementSafe(menuEl); controlsRow.style.visibility = 'hidden'; }
+function closeDukun(back=true){ hideElementSafe(document.getElementById('dukunModal')); if(back) showMenu(); }
+
+/* start/pause/end */
+let lastTime = 0;
+function startGame(){
+  hideMenu();
+  hideElementSafe(shopEl);
+  hideElementSafe(document.getElementById('dukunModal'));
+  score = 0; lives = 3; obstacles=[]; helis=[]; items=[]; particles=[];
+  spawnTimer = 1000; lifeTimer = rand(18000,30000); sackTimer = rand(22000,42000);
+  player.y = groundY - player.h; player.vy = 0; player.onGround = true; player.sliding = false;
+  activePowers = {}; powerTimers = {}; bullets = [];
+  gameState = 'playing'; lastTime = performance.now(); requestAnimationFrame(loop);
+}
+function pauseToggle(){ if(gameState==='playing'){ gameState='paused'; showCenter('PAUSE'); } else if(gameState==='paused'){ hideCenter(); gameState='playing'; lastTime = performance.now(); requestAnimationFrame(loop); } }
+function endGame(){ gameState='over'; coins += Math.floor(score/25); if(Math.floor(score) > best){ best = Math.floor(score); popup('Best baru: ' + best); } saveAll(); showCenter('GAME OVER\nScore: '+Math.floor(score)+'\nKoin +'+Math.floor(score/25), true); }
+
+/* center & popup */
+function showCenter(txt, withButtons=false){
+  centerEl.innerHTML = `<pre style="margin:0;font-family:monospace;color:#ffd">${txt}</pre>`;
+  if(withButtons){
+    const r = document.createElement('div'); r.style.marginTop='8px'; r.style.display='flex'; r.style.justifyContent='center'; r.style.gap='8px';
+    const b1 = document.createElement('div'); b1.className='btn'; b1.textContent='Restart'; b1.onclick=()=>{ hideElementSafe(centerEl); startGame(); };
+    const b2 = document.createElement('div'); b2.className='btn'; b2.textContent='Menu'; b2.onclick=()=>{ hideElementSafe(centerEl); gameState='menu'; showMenu(); };
+    r.appendChild(b1); r.appendChild(b2); centerEl.appendChild(r);
+  }
+  showElementSafe(centerEl);
+}
+function hideCenter(){ hideElementSafe(centerEl); centerEl.innerHTML=''; }
+
+function popup(msg, dur=1300){
+  popupEl.textContent = msg; showElementSafe(popupEl);
+  setTimeout(()=>{ hideElementSafe(popupEl); popupEl.textContent=''; }, dur);
+}
+
+/* audio (small sfx) */
+let audioCtx=null, muted=false;
+function ensureAudio(){ if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }
+function sfx(type){ if(muted) return; try{ ensureAudio(); const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); if(type==='jump'){ o.frequency.value=820; o.type='square'; g.gain.value=0.06; } else if(type==='slide'){ o.frequency.value=420; o.type='sine'; g.gain.value=0.05; } else if(type==='shoot'){ o.frequency.value=640; o.type='square'; g.gain.value=0.03; } else { o.frequency.value=620; o.type='sawtooth'; g.gain.value=0.05; } o.connect(g); g.connect(audioCtx.destination); o.start(); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.08); o.stop(audioCtx.currentTime + 0.09); }catch(e){} }
+
+/* ---------- Main loop (with slower score rate: ~2 pts/s) ---------- */
+function loop(now){
+  requestAnimationFrame(loop);
+  if(!lastTime) lastTime = now;
+  const dt = Math.min(40, now - lastTime); lastTime = now;
+  if(gameState === 'playing'){
+    // power timers
+    for(const k in powerTimers){
+      powerTimers[k] -= dt;
+      if(powerTimers[k] <= 0){ delete powerTimers[k]; activePowers[k] = false; popup('Power ended: '+k); }
+    }
+
+    phaseElapsed += dt; if(phaseElapsed >= phaseDuration){ phaseElapsed -= phaseDuration; phase = (phase + 1) % PHASES.length; popup('Waktu: ' + PHASES[phase]); }
+    worldSpeed = worldSpeedBase + Math.floor(score/250)*0.4;
+    // score change: ~2 pts/s base (dt in ms)
+    score += dt * 0.002 * (1 + (worldSpeed - worldSpeedBase) * 0.12);
+
+    // spawn
+    spawnTimer -= dt; if(spawnTimer <= 0){ spawnObstacle(); spawnTimer = rand(900,1600) - Math.min(300, Math.floor(score/12)); if(spawnTimer < 420) spawnTimer = 420; }
+    lifeTimer -= dt; if(lifeTimer <= 0){ spawnLife(); lifeTimer = rand(18000,30000); }
+    sackTimer -= dt; if(sackTimer <= 0){ spawnSack(); sackTimer = rand(30000,60000); }
+
+    // physics
+    if(!player.onGround){ player.vy += 0.95 * (dt/16); player.y += player.vy * (dt/16); if(player.y >= groundY - player.h){ player.y = groundY - player.h; player.vy = 0; player.onGround = true; } }
+    if(player.sliding){ player.slideT -= dt; if(player.slideT <= 0) player.sliding = false; }
+
+    // move obstacles/items/particles
+    for(const o of obstacles) o.x += o.vx * (dt/16);
+    obstacles = obstacles.filter(o => o.x + o.w > -220);
+    for(const h of helis){ h.x += h.vx * (dt/16); h.bob += 0.05 * (dt/16); h.y += Math.sin(h.bob) * 0.6; }
+    helis = helis.filter(h => h.x + h.w > -300);
+    for(const it of items){ it.x += (it.vx || -worldSpeed) * (dt/16); it.y += Math.sin((it.wob||0) + now/200) * 0.25; }
+    items = items.filter(it => it.x > -220);
+    for(let i=particles.length-1;i>=0;i--){ const p=particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.06; p.life -= dt; if(p.life <= 0) particles.splice(i,1); }
+
+    // bullets
+    for(let i=bullets.length-1;i>=0;i--){
+      const b=bullets[i];
+      b.x += b.vx * (dt/16);
+      b.life -= dt;
+      if(b.x > BASE_W + 80 || b.life <= 0) bullets.splice(i,1);
+    }
+
+    // collisions & HUD
+    handleCollisions();
+    updateHUD();
+    // achievements check
+    checkAchievements();
+  }
+  draw(now);
+}
+
+/* ---------- Draw ---------- */
+function draw(now){
+  const phaseName = PHASES[phase];
+  if(phaseName === 'night'){ const g=ctx.createLinearGradient(0,0,0,BASE_H); g.addColorStop(0,'#050815'); g.addColorStop(1,'#041019'); ctx.fillStyle=g; ctx.fillRect(0,0,BASE_W,BASE_H);
+    for(let i=0;i<60;i++) if(Math.random()<0.02) ctx.fillStyle='#fff', ctx.fillRect((i*83)%BASE_W + (Math.sin(i)*2), (i*41)%160 + Math.sin(i/3)*3, Math.random()<0.04?2:1, Math.random()<0.04?2:1);
+  } else if(phaseName==='morning'){ const g=ctx.createLinearGradient(0,0,0,BASE_H); g.addColorStop(0,'#2b3b5a'); g.addColorStop(1,'#bfe6ff'); ctx.fillStyle=g; ctx.fillRect(0,0,BASE_W,BASE_H); }
+  else if(phaseName==='day'){ const g=ctx.createLinearGradient(0,0,0,BASE_H); g.addColorStop(0,'#7ec0ff'); g.addColorStop(1,'#cfeeff'); ctx.fillStyle=g; ctx.fillRect(0,0,BASE_W,BASE_H); }
+  else { const g=ctx.createLinearGradient(0,0,0,BASE_H); g.addColorStop(0,'#3b2640'); g.addColorStop(1,'#142b3b'); ctx.fillStyle=g; ctx.fillRect(0,0,BASE_W,BASE_H); }
+
+  // buildings
+  for(let i=0;i<buildings.length;i++){
+    const b=buildings[i]; b.x -= (worldSpeed * b.speed) * 0.028; if(b.x + b.w < -80) b.x = BASE_W + rand(10,260);
+    const bx = Math.round(b.x), by = BASE_H - 120 - b.h;
+    ctx.fillStyle = (phaseName === 'night') ? '#081218' : 'rgba(16,22,28,' + (0.65 + (i%3)*0.06) + ')';
+    ctx.fillRect(bx, by, b.w, b.h);
+    const cols = b.windows[0].length, rows = b.windows.length;
+    const winW = Math.max(4, Math.floor((b.w - 8)/cols) - 3), winH = Math.max(6, Math.floor((b.h - 8)/rows) - 5);
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+      const wx = bx + 6 + c*(winW + 4), wy = by + 6 + r*(winH + 6);
+      let lit=false;
+      if(phaseName==='night') lit = b.windows[r][c].lit && Math.random()>0.2; else if(phaseName==='evening') lit = Math.random()<0.06;
+      if(lit) ctx.fillStyle='rgba(220,200,120,0.22)', ctx.fillRect(wx,wy,winW,winH); else ctx.fillStyle=(phaseName==='day'||phaseName==='morning')? '#172a32' : '#071118', ctx.fillRect(wx,wy,winW,winH);
+    }
+  }
+
+  // ground
+  ctx.fillStyle='#071a1a'; ctx.fillRect(0,BASE_H-90,BASE_W,90);
+  ctx.fillStyle='#1b8f8f'; for(let x=(Date.now()%280)>140?10:0;x<BASE_W;x+=100) ctx.fillRect(x,BASE_H-60,48,6);
+
+  // items
+  for(const it of items) drawItem(it);
+
+  // obstacles
+  for(const o of obstacles){
+    if(o.type==='car'){ ctx.drawImage(SPR.car, o.x, o.y, o.w, o.h); }
+    else if(o.type==='police'){ ctx.drawImage(SPR.police, o.x, o.y, o.w, o.h); }
+    else { ctx.fillStyle='#7f1f1f'; ctx.fillRect(o.x,o.y,o.w,o.h); }
+  }
+
+  // helis
+  for(const h of helis){ ctx.drawImage(SPR.heli, h.x, h.y, h.w, h.h); ctx.save(); ctx.translate(h.x + h.w/2, h.y - 6); const rot=(now/80)%(Math.PI*2); ctx.rotate(rot); ctx.fillStyle='#222'; ctx.fillRect(-h.w/2,-3,h.w,6); ctx.restore(); }
+
+  // bullets
+  for(const b of bullets){ ctx.fillStyle='#fff7d0'; ctx.fillRect(Math.round(b.x), Math.round(b.y), 12,4); }
+
+  // player (draw scaled to player.w/player.h)
+  player.tick++; if(player.onGround && !player.sliding){ if(player.tick % 7 === 0) player.frame = (player.frame + 1) % SPR.thief.length; } else player.frame = player.onGround ? player.frame : 0;
+  drawPlayer();
+
+  // particles
+  for(const p of particles){ ctx.fillStyle = p.col; ctx.fillRect(Math.round(p.x), Math.round(p.y), 2,2); }
+}
+
+function drawPlayer(){
+  const spr = player.sliding ? SPR.crouch : (!player.onGround ? SPR.jump : SPR.thief[player.frame % SPR.thief.length]);
+  // draw sprite scaled to player.w/player.h (keeps visuals matching hitbox, especially for 'mini' skin)
+  try{
+    ctx.drawImage(spr, Math.round(player.x - (player.w*0.08)), Math.round(player.y - (player.h*0.12)), Math.round(player.w*1.2), Math.round(player.h*1.2));
+  }catch(e){}
+}
+function drawItem(it){ if(it.type==='coin') ctx.drawImage(SPR.coin, it.x - 10, it.y - 10, SPR.coin.width, SPR.coin.height); else if(it.type==='sack') ctx.drawImage(SPR.sack, it.x - 12, it.y - 12, SPR.sack.width, SPR.sack.height); else if(it.type==='life') ctx.drawImage(SPR.life, it.x - 8, it.y - 8, SPR.life.width, SPR.life.height); }
+
+/* ---------- Input bindings (robust mobile) ---------- */
+canvas.addEventListener('pointerdown', (e)=>{ e.preventDefault(); if(gameState==='menu'){ startGame(); return; } doJump(); }, {passive:false});
+let touchStartY = null;
+canvas.addEventListener('touchstart', (e)=>{ touchStartY = e.touches[0].clientY; }, {passive:true});
+canvas.addEventListener('touchmove', (e)=>{ if(!touchStartY) return; const ny = e.touches[0].clientY; if(ny - touchStartY > 45) doCrouch(); }, {passive:true});
+canvas.addEventListener('touchend', ()=>{ touchStartY = null; });
+
+document.getElementById('jumpBtn').addEventListener('pointerdown', (e)=>{ e.preventDefault(); doJump(); }, {passive:false});
+document.getElementById('crouchBtn').addEventListener('pointerdown', (e)=>{ e.preventDefault(); doCrouch(); }, {passive:false});
+document.getElementById('shootBtn').addEventListener('pointerdown', (e)=>{ e.preventDefault(); doShoot(); }, {passive:false});
+
+document.getElementById('playBtn').addEventListener('pointerdown', (e)=>{ e.preventDefault(); startGame(); }, {passive:false});
+document.getElementById('shopBtn').addEventListener('pointerdown', (e)=>{ e.preventDefault(); openShop(); }, {passive:false});
+document.getElementById('shopClose').addEventListener('pointerdown', (e)=>{ e.preventDefault(); closeShop(false); }, {passive:false});
+document.getElementById('shopBack').addEventListener('pointerdown', (e)=>{ e.preventDefault(); closeShop(true); }, {passive:false});
+document.getElementById('pauseBtn').addEventListener('pointerdown', (e)=>{ e.preventDefault(); pauseToggle(); }, {passive:false});
+document.getElementById('muteBtn').addEventListener('pointerdown', (e)=>{ e.preventDefault(); muted = !muted; popup(muted? 'Muted' : 'Sound on'); }, {passive:false});
+
+/* Dukun handlers */
+document.getElementById('dukunBtn').addEventListener('pointerdown', (e)=>{ e.preventDefault(); openDukun(); }, {passive:false});
+document.getElementById('dukunClose').addEventListener('pointerdown', (e)=>{ e.preventDefault(); closeDukun(false); }, {passive:false});
+document.getElementById('dukunBack').addEventListener('pointerdown', (e)=>{ e.preventDefault(); closeDukun(true); }, {passive:false});
+
+/* ---------- Shop builder (skins only, Dukun handles powers) ---------- */
+function buildShop(){
+  const grid = document.getElementById('shopGrid'); grid.innerHTML = '';
+  document.getElementById('shopCoins').textContent = coins;
+  const skins = [
+    {id:'merah',name:'Merah',col:'#d9523b',price:0},
+    {id:'jingga',name:'Jingga',col:'#f39c12',price:60},
+    {id:'ungu',name:'Ungu',col:'#8e44ad',price:70},
+    {id:'hitam',name:'Hitam',col:'#111111',price:90},
+    {id:'mini',name:'Mini (Kecil)',col:'#39b3ff',price:2000},
+    {id:'gunners',name:'Gunners Maling',col:'#d22b2b',price:10000}
+  ];
+  skins.forEach(s=>{
+    const card=document.createElement('div'); card.className='card';
+    const sw=document.createElement('div'); sw.style.width='72px'; sw.style.height='48px'; sw.style.margin='0 auto'; sw.style.background=s.col; sw.style.border='2px solid #032';
+    const title=document.createElement('div'); title.textContent=s.name; title.style.marginTop='8px';
+    const btn=document.createElement('div'); btn.className='btn'; btn.style.marginTop='8px';
+    if(owned.includes(s.id)){
+      btn.textContent = (currentSkin===s.id ? 'DIPAKAI' : 'PAKAI');
+      btn.onclick=()=>{ currentSkin=s.id; applySkin(s.id); popup('Skin dipakai'); buildShop(); saveAll(); };
+    } else {
+      btn.textContent=s.price>0?('BELI '+s.price):'DIPAKAI';
+      btn.onclick=()=>{ 
+        if(s.price>0){
+          if(coins>=s.price){ coins-=s.price; owned.push(s.id); currentSkin=s.id; applySkin(s.id); saveAll(); popup('Terbeli '+s.name); }
+          else popup('Koin kurang');
+        } else { currentSkin=s.id; applySkin(s.id); popup('Skin dipakai'); }
+        updateHUD(); buildShop();
+      };
+    }
+    card.appendChild(sw); card.appendChild(title); card.appendChild(btn); grid.appendChild(card);
+  });
+
+  const hint=document.createElement('div'); hint.style.marginTop='8px'; hint.style.fontSize='13px'; hint.style.color='#9fe';
+  hint.textContent = 'Power-ups sekarang ada di DUKUN (tombol kanan bawah).';
+  grid.appendChild(hint);
+}
+
+/* ---------- Dukun builder (power-ups) ---------- */
+function buildDukun(){
+  const grid = document.getElementById('dukunGrid'); grid.innerHTML = '';
+  document.getElementById('dukunCoins').textContent = coins;
+  const powers=[ {id:'ghost',name:'Ghost (bypass police)',price:1200}, {id:'magnet',name:'Magnet (ambil jarak jauh)',price:800}, {id:'x2',name:'Double Koin',price:900}, {id:'shield',name:'Shield',price:160}, {id:'boost',name:'Boost',price:140} ];
+  powers.forEach(p=>{
+    const card=document.createElement('div'); card.className='card';
+    const box=document.createElement('div'); box.style.width='72px'; box.style.height='48px'; box.style.margin='0 auto'; box.style.background='#223'; box.style.border='2px solid #032';
+    const title=document.createElement('div'); title.textContent=p.name; title.style.marginTop='8px';
+    const btn=document.createElement('div'); btn.className='btn'; btn.style.marginTop='8px'; btn.textContent='BELI ' + p.price;
+    btn.onclick=()=>{ if(coins>=p.price){ coins-=p.price; /* place power item onto path near player */ items.push({ type:'power', kind:p.id, x:player.x+160, y:player.y-40, vx:-2 }); saveAll(); popup('Power diletakkan!'); } else popup('Koin kurang'); updateHUD(); buildDukun(); };
+    card.appendChild(box); card.appendChild(title); card.appendChild(btn); grid.appendChild(card);
+  });
+}
+
+/* apply skin (includes mini & gunners) */
+function applySkin(id){
+  const map={merah:'#d9523b',jingga:'#f39c12',ungu:'#8e44ad',hitam:'#111111', gunners:'#d22b2b', mini:'#39b3ff'};
+  genThief(map[id]||'#d9523b'); setControlIcons(); currentSkin=id; saveAll();
+  // shoot button visibility
+  try{ if(id === 'gunners'){ shootBtnEl.style.display = 'flex'; } else { shootBtnEl.style.display = 'none'; } } catch(e){}
+  // mini: change hitbox size
+  if(id === 'mini'){ player.w = Math.round(34 * 0.68); player.h = Math.round(46 * 0.68); }
+  else { player.w = 34; player.h = 46; }
+}
+
+/* autosave */
+setInterval(()=>saveAll(),3000);
+
+/* init show menu */
+showMenu(); updateHUD();
+
+/* ---------- Utilities exposed (debug) ---------- */
+window.__mrun = Object.assign(window.__mrun||{}, { clearOverlays: clearAllOverlays, showMenu, hideMenu, openShop, closeShop, openDukun, closeDukun });
+
+/* END of script initializations */
+</script>
+</body>
+</html>
